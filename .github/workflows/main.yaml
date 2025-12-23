@@ -1,4 +1,4 @@
-name: Machine Learning CI/CD Workflow
+name: Machine Learning CI Workflow
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  train-and-build-docker:
+  train-and-save-model:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,53 +26,17 @@ jobs:
 
     - name: Run MLflow Project (Training)
       env:
+        # Menetapkan lokasi tracking ke direktori lokal di runner
         MLFLOW_TRACKING_URI: "file://${{ github.workspace }}/mlruns"
       run: |
-        # Jalankan tanpa --experiment-name terlebih dahulu untuk debugging default
+        # Menjalankan training melalui MLflow Project
+        # --env-manager local digunakan agar menggunakan library yang sudah diinstall di atas
         mlflow run MLProject/ --entry-point main --env-manager local
 
-    - name: Check Secrets Availability
-      run: |
-        if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then echo "USERNAME IS EMPTY"; else echo "USERNAME IS SET"; fi
-        if [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then echo "TOKEN IS EMPTY"; else echo "TOKEN IS SET"; fi
-
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-    - name: Build and Push Docker Image
-      run: |
-        # 1. Cari folder eksperimen (biasanya '0' jika default, atau folder lain jika dinamai)
-        # Kita cari folder yang berisi angka (ID Eksperimen)
-        EXP_ID=$(ls mlruns | grep -E '^[0-9]+$' | head -n 1)
-        
-        # 2. Cari Run ID terbaru di dalam folder eksperimen tersebut
-        # Kita urutkan berdasarkan waktu modifikasi folder (t)
-        LAST_RUN_ID=$(ls -t mlruns/$EXP_ID | grep -v "meta.yaml" | head -n 1)
-        
-        echo "Experiment ID: $EXP_ID"
-        echo "Using Run ID: $LAST_RUN_ID"
-        
-        # 3. Verifikasi apakah ID ditemukan
-        if [ -z "$LAST_RUN_ID" ]; then
-          echo "Error: Run ID tidak ditemukan!"
-          exit 1
-        fi
-
-        # 4. Build Docker menggunakan path absolut ke folder artifacts
-        # Ini lebih stabil di CI daripada menggunakan format runs:/
-        mlflow models build-docker \
-          -m "mlruns/$EXP_ID/$LAST_RUN_ID/artifacts/model" \
-          -n "${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest" \
-          --install-mlflow
-        
-        # 5. Push ke Docker Hub
-        docker push ${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest
-
     - name: Archive Model Artifacts
+      # Langkah ini akan menyimpan folder mlruns (berisi model.pkl, params, metrics)
       uses: actions/upload-artifact@v4
       with:
-        name: trained-model
+        name: trained-model-artifacts
         path: mlruns/
+        retention-days: 7 # Opsional: menyimpan file selama 7 hari saja
