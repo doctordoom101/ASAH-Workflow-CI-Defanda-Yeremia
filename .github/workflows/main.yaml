@@ -15,7 +15,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Set up Python 3.10
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 
       with:
         python-version: '3.10'
 
@@ -26,20 +26,24 @@ jobs:
 
     - name: Run MLflow Project (Training)
       run: |
-        # Menjalankan training berdasarkan file MLProject
-        mlflow run MLProject/ --entry-point main --env-manager local
+        mlflow run MLProject/ --entry-point main --env-manager local --experiment-name "House-Value-Modelling"
 
     - name: Login to Docker Hub
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3 
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Build and Push Docker Image
       run: |
-        # Membangun image dari model yang dihasilkan
-        # Catatan: Biasanya kita menggunakan model-uri dari run terakhir atau model registry
-        mlflow models build-docker -m "runs:/$(mlflow last-run --experiment-name 'House Value Modelling' -q)/model" -n "${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest"
+        # Cari Run ID terakhir dari eksperimen yang BENAR
+        # Kita gunakan filter untuk mendapatkan ID run terbaru yang sukses
+        LAST_RUN_ID=$(mlflow runs list --experiment-name "House-Value-Modelling" | head -n 3 | tail -n 1 | awk '{print $1}')
+        
+        echo "Menggunakan Run ID: $LAST_RUN_ID"
+        
+        # Build Docker menggunakan ID tersebut
+        mlflow models build-docker -m "runs:/$LAST_RUN_ID/model" -n "${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest"
         
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest
 
