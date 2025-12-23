@@ -46,7 +46,7 @@ jobs:
       run: |
         # Cari Run ID terakhir dari eksperimen yang BENAR
         # Kita gunakan filter untuk mendapatkan ID run terbaru yang sukses
-        LAST_RUN_ID=$(mlflow runs list --experiment-name "House-Value-Modelling" | head -n 3 | tail -n 1 | awk '{print $1}')
+        LAST_RUN_ID=$(mlflow runs list --experiment-id "House-Value-Modelling" | head -n 3 | tail -n 1 | awk '{print $1}')
         
         echo "Menggunakan Run ID: $LAST_RUN_ID"
         
