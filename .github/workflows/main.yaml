@@ -27,7 +27,7 @@ jobs:
     - name: Run MLflow Project (Training)
       run: |
         # Menjalankan training berdasarkan file MLProject
-        mlflow run MLProject/ --entry-point main
+        mlflow run MLProject/ --entry-point main --env-manager local
 
     - name: Login to Docker Hub
       uses: docker/login-action@v2
