@@ -44,15 +44,31 @@ jobs:
 
     - name: Build and Push Docker Image
       run: |
-        # Cari Run ID terakhir dari eksperimen yang BENAR
-        # Kita gunakan filter untuk mendapatkan ID run terbaru yang sukses
-        LAST_RUN_ID=$(mlflow runs list --experiment-id "House-Value-Modelling" | head -n 3 | tail -n 1 | awk '{print $1}')
+        # 1. Cari folder eksperimen (biasanya '0' jika default, atau folder lain jika dinamai)
+        # Kita cari folder yang berisi angka (ID Eksperimen)
+        EXP_ID=$(ls mlruns | grep -E '^[0-9]+$' | head -n 1)
         
-        echo "Menggunakan Run ID: $LAST_RUN_ID"
+        # 2. Cari Run ID terbaru di dalam folder eksperimen tersebut
+        # Kita urutkan berdasarkan waktu modifikasi folder (t)
+        LAST_RUN_ID=$(ls -t mlruns/$EXP_ID | grep -v "meta.yaml" | head -n 1)
         
-        # Build Docker menggunakan ID tersebut
-        mlflow models build-docker -m "runs:/$LAST_RUN_ID/model" -n "${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest"
+        echo "Experiment ID: $EXP_ID"
+        echo "Using Run ID: $LAST_RUN_ID"
         
+        # 3. Verifikasi apakah ID ditemukan
+        if [ -z "$LAST_RUN_ID" ]; then
+          echo "Error: Run ID tidak ditemukan!"
+          exit 1
+        fi
+
+        # 4. Build Docker menggunakan path absolut ke folder artifacts
+        # Ini lebih stabil di CI daripada menggunakan format runs:/
+        mlflow models build-docker \
+          -m "mlruns/$EXP_ID/$LAST_RUN_ID/artifacts/model" \
+          -n "${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest" \
+          --install-mlflow
+        
+        # 5. Push ke Docker Hub
         docker push ${{ secrets.DOCKERHUB_USERNAME }}/house-value-app:latest
 
     - name: Archive Model Artifacts
